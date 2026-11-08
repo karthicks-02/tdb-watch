@@ -1,0 +1,22 @@
+name: TDB season watch
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      send_test:
+        description: "Send a test push even if not open"
+        type: boolean
+        default: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./check.sh
+        env:
+          TDB_USER: ${{ secrets.TDB_USER }}
+          TDB_PASS: ${{ secrets.TDB_PASS }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          SEND_TEST: ${{ inputs.send_test }}
