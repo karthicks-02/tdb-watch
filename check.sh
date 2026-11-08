@@ -11,12 +11,25 @@ notify() { # $1 title, $2 message, $3 priority
       --data-urlencode "text=*$1* - $2" --data-urlencode "apikey=$WA_APIKEY" >/dev/null && echo "whatsapp sent"
   fi
 }
-TOK=$(curl -s -m 30 -X POST https://onlinetdb.com/TDB/login -H 'Content-Type: application/json' \
-  -H "x-username: $TDB_USER" -H "x-password: $TDB_PASS" -d '{}' \
-  | python3 -c 'import sys,json;print(json.load(sys.stdin)["userData"]["token"])' 2>/dev/null) || true
-if [ -z "${TOK:-}" ]; then echo "Login failed"; exit 1; fi
-RES=$(curl -s -m 30 -H "x-auth-token: $TOK" "https://onlinetdb.com/TDB/seasonmaster/fetchdate?projectId=1")
-curl -s -m 15 -X POST https://onlinetdb.com/TDB/logout -H "x-auth-token: $TOK" -o /dev/null || true
+# Retries: each request up to 3 tries (5s apart, 20s timeout each); whole login+check up to 3 attempts.
+C=(curl -s -m 20 --retry 2 --retry-delay 5 --retry-all-errors)
+TOK=""; RES=""
+for attempt in 1 2 3; do
+  TOK=$("${C[@]}" -X POST https://onlinetdb.com/TDB/login -H 'Content-Type: application/json' \
+    -H "x-username: $TDB_USER" -H "x-password: $TDB_PASS" -d '{}' \
+    | python3 -c 'import sys,json;print(json.load(sys.stdin)["userData"]["token"])' 2>/dev/null) || true
+  if [ -n "$TOK" ]; then
+    RES=$("${C[@]}" -H "x-auth-token: $TOK" "https://onlinetdb.com/TDB/seasonmaster/fetchdate?projectId=1")
+    curl -s -m 15 -X POST https://onlinetdb.com/TDB/logout -H "x-auth-token: $TOK" -o /dev/null || true
+    echo "$RES" | python3 -c 'import sys,json;json.load(sys.stdin)["success"]' 2>/dev/null && break
+    echo "Attempt $attempt: bad season response: ${RES:0:200}"
+  else
+    echo "Attempt $attempt: login failed"
+  fi
+  RES=""; sleep 10
+done
+if [ -z "$TOK" ]; then echo "Login failed after 3 attempts"; exit 1; fi
+if [ -z "$RES" ]; then echo "Season API unreachable after 3 attempts - will try next run"; exit 0; fi
 echo "API response: $RES"
 DATA=$(echo "$RES" | python3 -c 'import sys,json;d=json.load(sys.stdin).get("data");print("" if d is None else json.dumps(d))')
 if [ -z "$DATA" ]; then
