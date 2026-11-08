@@ -26,3 +26,5 @@ if [ -z "$DATA" ]; then
 fi
 echo "SEASON OPEN: $DATA"
 notify "Sabarimala rooms OPEN" "Room booking season is OPEN on onlinetdb.com. Book 27 Nov now! https://www.onlinetdb.com/tdbweb/dist/login" urgent
+echo "::error title=SABARIMALA ROOMS OPEN::Room booking season is OPEN on onlinetdb.com - book 27 Nov now!"
+exit 1  # deliberate failure => GitHub emails the account owner
