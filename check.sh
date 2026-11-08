@@ -34,7 +34,7 @@ echo "API response: $RES"
 DATA=$(echo "$RES" | python3 -c 'import sys,json;d=json.load(sys.stdin).get("data");print("" if d is None else json.dumps(d))')
 if [ -z "$DATA" ]; then
   echo "Season not open"
-  [ "${SEND_TEST:-}" = "true" ] && notify "TEST - TDB watch" "Checker works. Season still NOT open." urgent
+  [ "${SEND_TEST:-}" = "true" ] && notify "TDB watch: running OK" "Status check $(TZ=Asia/Kolkata date +"%d %b %I:%M %p IST"): watcher is working. Sabarimala season still NOT open." high
   exit 0
 fi
 echo "SEASON OPEN: $DATA"
