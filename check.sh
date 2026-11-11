@@ -13,6 +13,25 @@ notify() { # $1 title, $2 message, $3 priority
 }
 # Retries: each request up to 3 tries (5s apart, 20s timeout each); whole login+check up to 3 attempts.
 C=(curl -s -m 20 --retry 2 --retry-delay 5 --retry-all-errors)
+# Site up/down memory between runs, kept in a private side-topic on ntfy.
+STATE_TOPIC="${NTFY_TOPIC}-state"
+last_state() { curl -s -m 15 "https://ntfy.sh/$STATE_TOPIC/json?poll=1&since=12h" | tail -1 \
+  | python3 -c 'import sys,json;print(json.loads(sys.stdin.read() or "{}").get("message",""))' 2>/dev/null; }
+set_state() { curl -s -m 15 -d "$1" "https://ntfy.sh/$STATE_TOPIC" >/dev/null; }
+site_up() { curl -s -o /dev/null -m 20 --retry 2 --retry-delay 5 --retry-all-errors https://onlinetdb.com/TDB/role/application/version; }
+# Site unreachable (server down) => one "down" push, no failure email; recovery => urgent "back" push.
+if ! site_up; then
+  echo "SITE DOWN: onlinetdb.com unreachable"
+  if [ "$(last_state)" != "down" ]; then
+    set_state down
+    notify "TDB site is DOWN" "onlinetdb.com is not responding (TDB server problem). Watcher keeps checking every 5 min and will alert when it is back." high
+  fi
+  exit 0
+fi
+if [ "$(last_state)" = "down" ]; then
+  set_state up
+  notify "TDB site is BACK - book now" "onlinetdb.com is responding again. Log in and check Room Booking for 27 Nov now!" urgent
+fi
 TOK=""; RES=""
 for attempt in 1 2 3; do
   TOK=$("${C[@]}" -X POST https://onlinetdb.com/TDB/login -H 'Content-Type: application/json' \
